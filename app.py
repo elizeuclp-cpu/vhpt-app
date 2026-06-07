@@ -126,25 +126,25 @@ def plotar_diagrama(F_re, F_vante, F_vento, F_res, ang_re, ang_vante, ang_vento,
     if F_re > 0:
         x_re = F_re * np.cos(np.radians(ang_re)) / scale
         y_re = F_re * np.sin(np.radians(ang_re)) / scale
-        ax.arrow(0, 0, x_re, y_re, head_width=0.08, head_length=0.08,
+        ax.arrow(0, 0, x_re, y_re, head_width=0.06, head_length=0.06,
                  fc='red', ec='red', linewidth=2, label=f'Vão Ré: {F_re:.0f} kgf')
     
     if F_vante > 0:
         x_vante = F_vante * np.cos(np.radians(ang_vante)) / scale
         y_vante = F_vante * np.sin(np.radians(ang_vante)) / scale
-        ax.arrow(0, 0, x_vante, y_vante, head_width=0.08, head_length=0.08,
+        ax.arrow(0, 0, x_vante, y_vante, head_width=0.06, head_length=0.06,
                  fc='blue', ec='blue', linewidth=2, label=f'Vão Vante: {F_vante:.0f} kgf')
     
     if F_vento > 0:
         x_vento = F_vento * np.cos(np.radians(ang_vento)) / scale
         y_vento = F_vento * np.sin(np.radians(ang_vento)) / scale
-        ax.arrow(0, 0, x_vento, y_vento, head_width=0.08, head_length=0.08,
+        ax.arrow(0, 0, x_vento, y_vento, head_width=0.06, head_length=0.06,
                  fc='orange', ec='orange', linewidth=2, label=f'Vento: {F_vento:.0f} kgf')
     
     if F_res > 0:
         x_res = F_res * np.cos(np.radians(theta_res)) / scale
         y_res = F_res * np.sin(np.radians(theta_res)) / scale
-        ax.arrow(0, 0, x_res, y_res, head_width=0.1, head_length=0.1,
+        ax.arrow(0, 0, x_res, y_res, head_width=0.08, head_length=0.08,
                  fc='green', ec='green', linewidth=3, label=f'Resultante: {F_res:.0f} kgf')
     
     # Desenhar eixos da elipse (face lisa e gaveta)
@@ -181,8 +181,9 @@ def plotar_diagrama(F_re, F_vante, F_vento, F_res, ang_re, ang_vante, ang_vento,
                        fontsize=7, color='black',
                        bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.7))
     
-    ax.set_xlim(-1.2, 1.2)
-    ax.set_ylim(-1.2, 1.2)
+    # Aumentar os limites para não cortar as cabeças das setas
+    ax.set_xlim(-1.35, 1.35)
+    ax.set_ylim(-1.35, 1.35)
     ax.set_aspect('equal')
     ax.grid(True, alpha=0.2)
     ax.set_xlabel('Eixo X', fontsize=10)
