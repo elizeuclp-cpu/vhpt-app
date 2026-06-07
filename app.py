@@ -455,4 +455,342 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         peso_composto = np.sqrt(peso1**2 + fv_max**2)
         
         T_circ1_re_vento = mudanca_estado(T_circ1_re_eds, temp_eds, temp_vento, peso1, peso_composto, vao_re, E1, S1, alpha1)
-        T_circ1_vante_vento = mudanca_esta
+        T_circ1_vante_vento = mudanca_estado(T_circ1_vante_eds, temp_eds, temp_vento, peso1, peso_composto, vao_vante, E1, S1, alpha1)
+        
+        if is_duplo:
+            fv_max2 = D2 * pressao_vento
+            peso_composto2 = np.sqrt(peso2**2 + fv_max2**2)
+            T_circ2_re_vento = mudanca_estado(T_circ2_re_eds, temp_eds, temp_vento, peso2, peso_composto2, vao_re, E2, S2, alpha2)
+            T_circ2_vante_vento = mudanca_estado(T_circ2_vante_eds, temp_eds, temp_vento, peso2, peso_composto2, vao_vante, E2, S2, alpha2)
+        else:
+            T_circ2_re_vento = T_circ2_vante_vento = 0
+        
+        if tem_pr:
+            fv_max_pr = D_pr * pressao_vento
+            peso_composto_pr = np.sqrt(peso_pr**2 + fv_max_pr**2)
+            T_pr_re_vento = mudanca_estado(T_pr_re_eds, temp_eds, temp_vento, peso_pr, peso_composto_pr, vao_re, E_pr, S_pr, alpha_pr)
+            T_pr_vante_vento = mudanca_estado(T_pr_vante_eds, temp_eds, temp_vento, peso_pr, peso_composto_pr, vao_vante, E_pr, S_pr, alpha_pr)
+        else:
+            T_pr_re_vento = T_pr_vante_vento = 0
+        
+        F_re_vento_cabos = K_circ1 * T_circ1_re_vento + K_circ2 * T_circ2_re_vento + K_pr * T_pr_re_vento
+        F_vante_vento_cabos = K_circ1 * T_circ1_vante_vento + K_circ2 * T_circ2_vante_vento + K_pr * T_pr_vante_vento
+        
+        ang_vento_critico, _ = encontrar_angulo_critico_vento(
+            F_re_vento_cabos, F_vante_vento_cabos, ang_re, ang_vante,
+            S_arrasto, pressao_vento, vao_re, vao_vante)
+        
+        seno_re = abs(np.sin(np.radians(ang_vento_critico - ang_re)))
+        seno_vante = abs(np.sin(np.radians(ang_vento_critico - ang_vante)))
+        F_vento_mag = (pressao_vento/2) * (vao_re * seno_re + vao_vante * seno_vante) * S_arrasto
+        
+        F_re_vento = F_re_vento_cabos + F_vento_mag * np.cos(np.radians(ang_vento_critico))
+        F_vante_vento = F_vante_vento_cabos + F_vento_mag * np.sin(np.radians(ang_vento_critico))
+        
+        F_re_vento_vec = forca_complexa(F_re_vento_cabos, ang_re)
+        F_vante_vento_vec = forca_complexa(F_vante_vento_cabos, ang_vante)
+        F_vento_vec = forca_complexa(F_vento_mag, ang_vento_critico)
+        R_vento_vec = F_re_vento_vec + F_vante_vento_vec + F_vento_vec
+        R_vento = abs(R_vento_vec)
+        theta_vento = np.degrees(np.angle(R_vento_vec))
+        if theta_vento < 0:
+            theta_vento += 360
+        
+        # ===================================================
+        # HIPÓTESE 4: CABO CONDUTOR ROMPIDO
+        # ===================================================
+        num_fases = len(K_fases)
+        indice_fase_mais_alta = np.argmax(K_fases)
+        
+        fv_max_red = D1 * pressao_vento_reduzida
+        peso_composto_red = np.sqrt(peso1**2 + fv_max_red**2)
+        
+        T_circ1_re_rompido = mudanca_estado(T_circ1_re_eds, temp_eds, temp_vento, peso1, peso_composto_red, vao_re, E1, S1, alpha1)
+        T_circ1_vante_rompido = mudanca_estado(T_circ1_vante_eds, temp_eds, temp_vento, peso1, peso_composto_red, vao_vante, E1, S1, alpha1)
+        
+        if is_duplo:
+            fv_max_red2 = D2 * pressao_vento_reduzida
+            peso_composto_red2 = np.sqrt(peso2**2 + fv_max_red2**2)
+            T_circ2_re_rompido = mudanca_estado(T_circ2_re_eds, temp_eds, temp_vento, peso2, peso_composto_red2, vao_re, E2, S2, alpha2)
+            T_circ2_vante_rompido = mudanca_estado(T_circ2_vante_eds, temp_eds, temp_vento, peso2, peso_composto_red2, vao_vante, E2, S2, alpha2)
+        else:
+            T_circ2_re_rompido = T_circ2_vante_rompido = 0
+        
+        if tem_pr:
+            fv_max_pr_red = D_pr * pressao_vento_reduzida
+            peso_composto_pr_red = np.sqrt(peso_pr**2 + fv_max_pr_red**2)
+            T_pr_re_rompido = mudanca_estado(T_pr_re_eds, temp_eds, temp_vento, peso_pr, peso_composto_pr_red, vao_re, E_pr, S_pr, alpha_pr)
+            T_pr_vante_rompido = mudanca_estado(T_pr_vante_eds, temp_eds, temp_vento, peso_pr, peso_composto_pr_red, vao_vante, E_pr, S_pr, alpha_pr)
+        else:
+            T_pr_re_rompido = T_pr_vante_rompido = 0
+        
+        # Cenário A: rompe no ré
+        T_re_rompido_A = []
+        for i in range(num_fases):
+            if i == indice_fase_mais_alta:
+                T_re_rompido_A.append(0)
+            else:
+                T_re_rompido_A.append(T_circ1_re_rompido if i < 3 else T_circ2_re_rompido)
+        
+        T_vante_rompido_A = [T_circ1_vante_rompido if i < 3 else T_circ2_vante_rompido for i in range(num_fases)]
+        
+        F_re_rompido_A = sum([K_fases[i] * T_re_rompido_A[i] for i in range(num_fases)]) + (K_pr * T_pr_re_rompido if tem_pr else 0)
+        F_vante_rompido_A = sum([K_fases[i] * T_vante_rompido_A[i] for i in range(num_fases)]) + (K_pr * T_pr_vante_rompido if tem_pr else 0)
+        
+        # Cenário B: rompe no vante
+        T_re_rompido_B = [T_circ1_re_rompido if i < 3 else T_circ2_re_rompido for i in range(num_fases)]
+        
+        T_vante_rompido_B = []
+        for i in range(num_fases):
+            if i == indice_fase_mais_alta:
+                T_vante_rompido_B.append(0)
+            else:
+                T_vante_rompido_B.append(T_circ1_vante_rompido if i < 3 else T_circ2_vante_rompido)
+        
+        F_re_rompido_B = sum([K_fases[i] * T_re_rompido_B[i] for i in range(num_fases)]) + (K_pr * T_pr_re_rompido if tem_pr else 0)
+        F_vante_rompido_B = sum([K_fases[i] * T_vante_rompido_B[i] for i in range(num_fases)]) + (K_pr * T_pr_vante_rompido if tem_pr else 0)
+        
+        R_rompido_A = abs(forca_complexa(F_re_rompido_A, ang_re) + forca_complexa(F_vante_rompido_A, ang_vante))
+        R_rompido_B = abs(forca_complexa(F_re_rompido_B, ang_re) + forca_complexa(F_vante_rompido_B, ang_vante))
+        
+        if R_rompido_A >= R_rompido_B:
+            pior_cenario = "Rompimento no ré"
+            F_re_rompido_final = F_re_rompido_A
+            F_vante_rompido_final = F_vante_rompido_A
+        else:
+            pior_cenario = "Rompimento no vante"
+            F_re_rompido_final = F_re_rompido_B
+            F_vante_rompido_final = F_vante_rompido_B
+        
+        # S_arrasto reduzido
+        S_arrasto_reduzido = 0
+        for i in range(num_fases):
+            if i == indice_fase_mais_alta:
+                continue
+            else:
+                if i < 3:
+                    S_arrasto_reduzido += D1 * K_fases[i] * cabos_por_fase
+                else:
+                    if is_duplo:
+                        S_arrasto_reduzido += D2 * K_fases[i] * cabos_por_fase
+        if tem_pr:
+            S_arrasto_reduzido += D_pr * K_pr
+        
+        ang_vento_rompido_critico, _ = encontrar_angulo_critico_vento(
+            F_re_rompido_final, F_vante_rompido_final, ang_re, ang_vante,
+            S_arrasto_reduzido, pressao_vento_reduzida, vao_re, vao_vante)
+        
+        seno_re_rompido = abs(np.sin(np.radians(ang_vento_rompido_critico - ang_re)))
+        seno_vante_rompido = abs(np.sin(np.radians(ang_vento_rompido_critico - ang_vante)))
+        F_vento_rompido_mag = (pressao_vento_reduzida/2) * (vao_re * seno_re_rompido + vao_vante * seno_vante_rompido) * S_arrasto_reduzido
+        
+        F_re_rompido_total = F_re_rompido_final + F_vento_rompido_mag * np.cos(np.radians(ang_vento_rompido_critico))
+        F_vante_rompido_total = F_vante_rompido_final + F_vento_rompido_mag * np.sin(np.radians(ang_vento_rompido_critico))
+        
+        F_re_rompido_vec = forca_complexa(F_re_rompido_final, ang_re)
+        F_vante_rompido_vec = forca_complexa(F_vante_rompido_final, ang_vante)
+        F_vento_rompido_vec = forca_complexa(F_vento_rompido_mag, ang_vento_rompido_critico)
+        R_rompido_vec = F_re_rompido_vec + F_vante_rompido_vec + F_vento_rompido_vec
+        R_rompido = abs(R_rompido_vec)
+        theta_rompido = np.degrees(np.angle(R_rompido_vec))
+        if theta_rompido < 0:
+            theta_rompido += 360
+        
+        # ===================================================
+        # CORREÇÃO DUPLO T
+        # ===================================================
+        comerciais = [1500, 2000, 2500, 3000, 4000]
+        
+        if tipo_poste == 'Duplo T':
+            bissetriz = (180 + delta) / 2
+            if locacao in ['L1', 'L3']:
+                theta_face = bissetriz
+            elif locacao in ['L2', 'L4']:
+                theta_face = bissetriz - 90
+            else:
+                theta_face = ang_re if F_re_eds >= F_vante_eds else ang_vante
+            
+            fator_eds = fator_correcao_duplo_t(theta_eds, theta_face)
+            R_eds_corrigido = R_eds / fator_eds
+            
+            fator_min = fator_correcao_duplo_t(theta_min, theta_face)
+            R_min_corrigido = R_min / fator_min
+            
+            fator_vento = fator_correcao_duplo_t(theta_vento, theta_face)
+            R_vento_corrigido = R_vento / fator_vento
+            
+            fator_rompido = fator_correcao_duplo_t(theta_rompido, theta_face)
+            R_rompido_corrigido = R_rompido / fator_rompido
+        else:
+            theta_face = None
+            fator_eds = fator_min = fator_vento = fator_rompido = 1.0
+            R_eds_corrigido = R_eds
+            R_min_corrigido = R_min
+            R_vento_corrigido = R_vento
+            R_rompido_corrigido = R_rompido
+        
+        # FATOR CAGAÇO
+        fator_cagaco_float = fator_cagaco / 100
+        R_eds_corrigido *= (1 + fator_cagaco_float)
+        R_min_corrigido *= (1 + fator_cagaco_float)
+        R_vento_corrigido *= (1 + fator_cagaco_float)
+        R_rompido_corrigido *= (1 + fator_cagaco_float)
+        
+        # CONVERSÃO kgf → daN e SOBRECARGA
+        R_eds_daN = R_eds_corrigido * KGf_TO_DAN
+        R_min_daN = R_min_corrigido * KGf_TO_DAN / (1 + SOBRECARGA_TRANSITORIA)
+        R_vento_daN = R_vento_corrigido * KGf_TO_DAN / (1 + SOBRECARGA_TRANSITORIA)
+        R_rompido_daN = R_rompido_corrigido * KGf_TO_DAN / (1 + SOBRECARGA_TRANSITORIA)
+        
+        # POSTE RECOMENDADO
+        poste_eds = min([p for p in comerciais if p >= R_eds_daN]) if R_eds_daN <= 4000 else 4000
+        poste_min = min([p for p in comerciais if p >= R_min_daN]) if R_min_daN <= 4000 else 4000
+        poste_vento = min([p for p in comerciais if p >= R_vento_daN]) if R_vento_daN <= 4000 else 4000
+        poste_rompido = min([p for p in comerciais if p >= R_rompido_daN]) if R_rompido_daN <= 4000 else 4000
+        poste_recomendado = max(poste_eds, poste_min, poste_vento, poste_rompido)
+        
+        # ===================================================
+        # EXIBIR RESULTADOS - IGUAL AO COLAB
+        # ===================================================
+        st.markdown("---")
+        st.subheader("📋 PARÂMETROS DE PROJETO")
+        
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            st.metric("Tipo de poste", tipo_poste)
+            st.metric("Fixação", "Suspensão" if fixacao == "suspensao" else "Ancoragem")
+            st.metric("Locação", locacao if tipo_poste == "Duplo T" else "N/A")
+            st.metric("Altura", f"{altura_poste} m")
+        with col_b:
+            st.metric("Vão ré", f"{vao_re} m")
+            st.metric("Vão vante", f"{vao_vante} m")
+            st.metric("Circuitos", num_circuitos)
+            st.metric("Deflexão (δ)", f"{delta}°")
+        with col_c:
+            st.metric("Temp EDS", f"{temp_eds} °C")
+            st.metric("Temp mínima", f"{temp_min} °C (Creep: {creep_min})")
+            st.metric("Temp vento", f"{temp_vento} °C")
+            st.metric("Pressão vento", f"{pressao_vento} kgf/m²")
+        
+        st.markdown("---")
+        st.subheader("📊 TABELA COMPARATIVA POR HIPÓTESE")
+        
+        dados_tabela = [
+            {'Hipótese': 'EDS', 'Tração Ré (kgf)': f"{F_re_eds:.1f}", 'Tração Vante (kgf)': f"{F_vante_eds:.1f}", 'Força Vento (kgf)': '-', 'Resultante (kgf)': f"{R_eds:.1f}", 'Ângulo (°)': f"{theta_eds:.1f}", 'Fator Corr.': f"{fator_eds:.3f}", 'Esforço Final (daN)': f"{R_eds_daN:.1f}"},
+            {'Hipótese': 'TEMP MÍNIMA', 'Tração Ré (kgf)': f"{F_re_min:.1f}", 'Tração Vante (kgf)': f"{F_vante_min:.1f}", 'Força Vento (kgf)': '-', 'Resultante (kgf)': f"{R_min:.1f}", 'Ângulo (°)': f"{theta_min:.1f}", 'Fator Corr.': f"{fator_min:.3f}", 'Esforço Final (daN)': f"{R_min_daN:.1f}"},
+            {'Hipótese': 'VENTO MÁXIMO', 'Tração Ré (kgf)': f"{F_re_vento_cabos:.1f}", 'Tração Vante (kgf)': f"{F_vante_vento_cabos:.1f}", 'Força Vento (kgf)': f"{F_vento_mag:.1f}", 'Resultante (kgf)': f"{R_vento:.1f}", 'Ângulo (°)': f"{theta_vento:.1f}", 'Fator Corr.': f"{fator_vento:.3f}", 'Esforço Final (daN)': f"{R_vento_daN:.1f}"},
+            {'Hipótese': 'CABO ROMPIDO', 'Tração Ré (kgf)': f"{F_re_rompido_final:.1f}", 'Tração Vante (kgf)': f"{F_vante_rompido_final:.1f}", 'Força Vento (kgf)': f"{F_vento_rompido_mag:.1f}", 'Resultante (kgf)': f"{R_rompido:.1f}", 'Ângulo (°)': f"{theta_rompido:.1f}", 'Fator Corr.': f"{fator_rompido:.3f}", 'Esforço Final (daN)': f"{R_rompido_daN:.1f}"}
+        ]
+        
+        df = pd.DataFrame(dados_tabela)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        
+        st.markdown("---")
+        st.subheader("📈 INFORMAÇÕES ADICIONAIS")
+        st.text(f"Parte aérea do poste: {parte_aerea:.2f} m")
+        st.text(f"Ponto de referência (X): {X:.2f} m do solo")
+        st.text(f"K_circuito1: {K_circ1:.3f}")
+        if is_duplo:
+            st.text(f"K_circuito2: {K_circ2:.3f}")
+        if tem_pr:
+            st.text(f"K_PR: {K_pr:.3f}")
+        
+        st.markdown("---")
+        st.subheader("📋 RELATÓRIO POR HIPÓTESE")
+        
+        st.markdown("**📌 EDS**")
+        st.text(f"   Temperatura: {temp_eds} °C")
+        st.text(f"   Trações: Ré = {F_re_eds:.1f} kgf | Vante = {F_vante_eds:.1f} kgf")
+        st.text(f"   Resultante: {R_eds:.1f} kgf")
+        
+        st.markdown("**📌 TEMPERATURA MÍNIMA**")
+        st.text(f"   Temperatura mínima: {temp_min} °C | Creep: {creep_min} °C | Eq: {temp_min_eq:.1f} °C")
+        st.text(f"   Trações: Ré = {F_re_min:.1f} kgf | Vante = {F_vante_min:.1f} kgf")
+        st.text(f"   Resultante: {R_min:.1f} kgf")
+        
+        st.markdown("**🌬️ VENTO MÁXIMO**")
+        st.text(f"   Temperatura vento: {temp_vento} °C | Pressão: {pressao_vento} kgf/m²")
+        st.text(f"   Peso composto: {peso_composto:.4f} kgf/m")
+        st.text(f"   Ângulo crítico do vento: {ang_vento_critico:.1f}°")
+        st.text(f"   Trações (cabos): Ré = {F_re_vento_cabos:.1f} kgf | Vante = {F_vante_vento_cabos:.1f} kgf")
+        st.text(f"   Força de arrasto: {F_vento_mag:.1f} kgf")
+        st.text(f"   Resultante total: {R_vento:.1f} kgf")
+        
+        st.markdown("**💔 CABO ROMPIDO**")
+        st.text(f"   Pressão vento reduzida: {pressao_vento_reduzida} kgf/m²")
+        st.text(f"   Fase mais alta: Fase {indice_fase_mais_alta + 1} (K = {K_fases[indice_fase_mais_alta]:.3f})")
+        st.text(f"   Ângulo crítico do vento: {ang_vento_rompido_critico:.1f}°")
+        st.text(f"   Resultante sem vento:")
+        st.text(f"      Cenário A (rompe ré): {R_rompido_A:.1f} kgf")
+        st.text(f"      Cenário B (rompe vante): {R_rompido_B:.1f} kgf")
+        st.text(f"   Pior cenário: {pior_cenario}")
+        st.text(f"   Trações (pior cenário): Ré = {F_re_rompido_final:.1f} kgf | Vante = {F_vante_rompido_final:.1f} kgf")
+        st.text(f"   Força de arrasto: {F_vento_rompido_mag:.1f} kgf")
+        st.text(f"   Resultante total com vento: {R_rompido:.1f} kgf")
+        
+        st.markdown("---")
+        st.subheader("🎯 CONCLUSÃO")
+        
+        st.text(f"   EDS: {R_eds_daN:.1f} daN → Poste {poste_eds} daN")
+        st.text(f"   TEMP MÍNIMA: {R_min_daN:.1f} daN → Poste {poste_min} daN")
+        st.text(f"   VENTO MÁXIMO: {R_vento_daN:.1f} daN → Poste {poste_vento} daN")
+        st.text(f"   CABO ROMPIDO: {R_rompido_daN:.1f} daN → Poste {poste_rompido} daN")
+        
+        st.metric("Poste comercial recomendado", f"{poste_recomendado} daN")
+        
+        if R_eds_daN > 4000 or R_min_daN > 4000 or R_vento_daN > 4000 or R_rompido_daN > 4000:
+            st.warning("⚠️ ATENÇÃO: Esforço calculado > 4000 daN. Não há poste comercial disponível com esta capacidade.")
+        
+        # Diagramas em abas
+        st.markdown("---")
+        st.subheader("📈 DIAGRAMAS VETORIAIS")
+        
+        tab1, tab2, tab3, tab4 = st.tabs(["EDS", "TEMP MÍNIMA", "VENTO MÁXIMO", "CABO ROMPIDO"])
+        
+        with tab1:
+            fig1 = plotar_diagrama(
+                F_re_eds, F_vante_eds, 0, R_eds,
+                ang_re, ang_vante, 0, theta_eds,
+                tipo_poste, f"EDS - Resultante: {R_eds_daN:.1f} daN",
+                theta_face if tipo_poste == 'Duplo T' else None,
+                fator_eds if tipo_poste == 'Duplo T' else None
+            )
+            st.pyplot(fig1)
+            plt.close(fig1)
+        
+        with tab2:
+            fig2 = plotar_diagrama(
+                F_re_min, F_vante_min, 0, R_min,
+                ang_re, ang_vante, 0, theta_min,
+                tipo_poste, f"TEMP MÍNIMA - Resultante: {R_min_daN:.1f} daN",
+                theta_face if tipo_poste == 'Duplo T' else None,
+                fator_min if tipo_poste == 'Duplo T' else None
+            )
+            st.pyplot(fig2)
+            plt.close(fig2)
+        
+        with tab3:
+            fig3 = plotar_diagrama(
+                F_re_vento_cabos, F_vante_vento_cabos, F_vento_mag, R_vento,
+                ang_re, ang_vante, ang_vento_critico, theta_vento,
+                tipo_poste, f"VENTO MÁXIMO - Resultante: {R_vento_daN:.1f} daN",
+                theta_face if tipo_poste == 'Duplo T' else None,
+                fator_vento if tipo_poste == 'Duplo T' else None
+            )
+            st.pyplot(fig3)
+            plt.close(fig3)
+        
+        with tab4:
+            fig4 = plotar_diagrama(
+                F_re_rompido_final, F_vante_rompido_final, F_vento_rompido_mag, R_rompido,
+                ang_re, ang_vante, ang_vento_rompido_critico, theta_rompido,
+                tipo_poste, f"CABO ROMPIDO - Resultante: {R_rompido_daN:.1f} daN",
+                theta_face if tipo_poste == 'Duplo T' else None,
+                fator_rompido if tipo_poste == 'Duplo T' else None
+            )
+            st.pyplot(fig4)
+            plt.close(fig4)
+        
+    except Exception as e:
+        st.error(f"❌ Erro no cálculo: {e}")
+        st.exception(e)
