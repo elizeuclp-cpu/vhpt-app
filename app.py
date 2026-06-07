@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import pandas as pd
 from datetime import datetime
+import plotly.graph_objects as go
+import plotly.express as px
 
 # ===================================================
 # CONFIGURAÇÃO DA PÁGINA
@@ -198,51 +200,81 @@ def plotar_diagrama(F_re, F_vante, F_vento, F_res, ang_re, ang_vante, ang_vento,
     plt.tight_layout()
     return fig
 
-def plot_grafico_barras(hipoteses, valores, poste_recomendado):
-    """Gráfico de barras comparativo das hipóteses"""
-    fig, ax = plt.subplots(figsize=(10, 6))
+def plot_grafico_barras_plotly(hipoteses, valores, poste_recomendado):
+    """Gráfico de barras interativo com Plotly"""
     
-    # Cores das barras (vermelho se ultrapassar o limite)
-    cores = []
-    for valor in valores:
-        if valor > LIMITE_MAXIMO_POSTE:
-            cores.append('red')
-        else:
-            cores.append('steelblue')
+    # Cores das barras
+    cores = ['#1f77b4' if v <= LIMITE_MAXIMO_POSTE else '#ef553b' for v in valores]
     
-    barras = ax.bar(hipoteses, valores, color=cores, edgecolor='black', linewidth=1)
+    fig = go.Figure()
     
-    # Linha do limite máximo
-    ax.axhline(y=LIMITE_MAXIMO_POSTE, color='red', linestyle='--', linewidth=2, 
-               label=f'Limite máximo: {LIMITE_MAXIMO_POSTE} daN')
+    # Adicionar barras
+    fig.add_trace(go.Bar(
+        x=hipoteses,
+        y=valores,
+        marker_color=cores,
+        text=[f'{v:.0f}' for v in valores],
+        textposition='outside',
+        textfont=dict(size=12, color='black'),
+        hovertemplate='<b>%{x}</b><br>Esforço: %{y:.0f} daN<extra></extra>'
+    ))
     
-    # Linha do poste recomendado (se dentro do limite)
-    if poste_recomendado <= LIMITE_MAXIMO_POSTE:
-        ax.axhline(y=poste_recomendado, color='green', linestyle='--', linewidth=2,
-                   label=f'Poste recomendado: {poste_recomendado} daN')
+    # Linha do poste recomendado
+    fig.add_hline(
+        y=poste_recomendado, 
+        line_dash="dash", 
+        line_color="#2ca02c", 
+        line_width=2,
+        annotation_text=f"Poste recomendado: {poste_recomendado} daN",
+        annotation_position="top right",
+        annotation_font_size=11
+    )
     
-    # Adicionar valores nas barras
-    for i, (barra, valor) in enumerate(zip(barras, valores)):
-        if valor > LIMITE_MAXIMO_POSTE:
-            ax.text(barra.get_x() + barra.get_width()/2, LIMITE_MAXIMO_POSTE - 50,
-                   f'⚠️ {valor:.0f} daN', ha='center', va='top', 
-                   color='red', fontweight='bold', fontsize=9)
-        else:
-            ax.text(barra.get_x() + barra.get_width()/2, valor + 20,
-                   f'{valor:.0f}', ha='center', va='bottom', fontsize=9)
+    # Verificar se algum valor ultrapassou o limite máximo
+    if any(v > LIMITE_MAXIMO_POSTE for v in valores):
+        fig.add_hline(
+            y=LIMITE_MAXIMO_POSTE, 
+            line_dash="dash", 
+            line_color="#d62728", 
+            line_width=2,
+            annotation_text=f"Limite máximo: {LIMITE_MAXIMO_POSTE} daN",
+            annotation_position="top left",
+            annotation_font_size=11
+        )
     
-    ax.set_ylabel('Esforço Final (daN)', fontsize=12)
-    ax.set_xlabel('Hipótese', fontsize=12)
-    ax.set_title('Comparação de Esforços por Hipótese', fontsize=14, fontweight='bold')
-    ax.set_ylim(0, max(max(valores) * 1.1, LIMITE_MAXIMO_POSTE * 1.1))
-    ax.grid(True, axis='y', alpha=0.3)
-    ax.legend(loc='upper right')
+    # Layout moderno
+    fig.update_layout(
+        title=dict(
+            text="<b>Comparação de Esforços por Hipótese</b>",
+            font=dict(size=18, color="#1f1f1f"),
+            x=0.5
+        ),
+        xaxis=dict(
+            title=dict(text="<b>Hipótese</b>", font=dict(size=14)),
+            tickfont=dict(size=12),
+            gridcolor='#e9ecef'
+        ),
+        yaxis=dict(
+            title=dict(text="<b>Esforço Final (daN)</b>", font=dict(size=14)),
+            tickfont=dict(size=12),
+            gridcolor='#e9ecef',
+            zeroline=True,
+            zerolinecolor='#dee2e6'
+        ),
+        plot_bgcolor='white',
+        hovermode='closest',
+        height=500,
+        margin=dict(l=50, r=50, t=80, b=50)
+    )
     
-    plt.tight_layout()
+    # Adicionar grid sutil
+    fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='#e9ecef')
+    fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='#e9ecef')
+    
     return fig
 
 # ===================================================
-# INTERFACE STREAMLIT
+# INTERFACE STREAMLIT (mantida igual)
 # ===================================================
 
 # Criar duas colunas
@@ -382,7 +414,7 @@ with col2:
 if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_width=True):
     try:
         # ===================================================
-        # DADOS DOS CABOS (mesmo código de sempre)
+        # CÁLCULO (MESMO DA VERSÃO ANTERIOR)
         # ===================================================
         cr1 = cabos_data[caboid1]['CR']
         peso1 = cabos_data[caboid1]['peso']
@@ -411,7 +443,6 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         else:
             cr_pr = peso_pr = E_pr = S_pr = alpha_pr = D_pr = 0
         
-        # Trações EDS
         T_circ1_re_eds = cr1 * (perc_re_circ1 / 100)
         T_circ1_vante_eds = cr1 * (perc_vante_circ1 / 100)
         
@@ -427,7 +458,10 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         else:
             T_pr_re_eds = T_pr_vante_eds = 0
         
-        # Coeficientes K
+        dist_fases = [dist_f1, dist_f2, dist_f3]
+        if is_duplo:
+            dist_fases += [dist_f4, dist_f5, dist_f6]
+        
         dist_pr = dist_pr if tem_pr else None
         K_fases, K_pr, X, parte_aerea = calcular_coeficientes_k(dist_fases, dist_pr, altura_poste)
         
@@ -441,9 +475,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         ang_re = 180
         ang_vante = delta
         
-        # ===================================================
         # HIPÓTESE 1: EDS
-        # ===================================================
         F_re_eds = K_circ1 * T_circ1_re_eds + K_circ2 * T_circ2_re_eds + K_pr * T_pr_re_eds
         F_vante_eds = K_circ1 * T_circ1_vante_eds + K_circ2 * T_circ2_vante_eds + K_pr * T_pr_vante_eds
         
@@ -455,9 +487,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         if theta_eds < 0:
             theta_eds += 360
         
-        # ===================================================
         # HIPÓTESE 2: TEMPERATURA MÍNIMA
-        # ===================================================
         temp_min_eq = temp_min - creep_min
         
         T_circ1_re_min = mudanca_estado(T_circ1_re_eds, temp_eds, temp_min_eq, peso1, peso1, vao_re, E1, S1, alpha1)
@@ -486,9 +516,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         if theta_min < 0:
             theta_min += 360
         
-        # ===================================================
         # HIPÓTESE 3: VENTO MÁXIMO
-        # ===================================================
         S_arrasto = 0
         for i in range(len(K_fases)):
             if i < 3:
@@ -532,9 +560,6 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         seno_vante = abs(np.sin(np.radians(ang_vento_critico - ang_vante)))
         F_vento_mag = (pressao_vento/2) * (vao_re * seno_re + vao_vante * seno_vante) * S_arrasto
         
-        F_re_vento = F_re_vento_cabos + F_vento_mag * np.cos(np.radians(ang_vento_critico))
-        F_vante_vento = F_vante_vento_cabos + F_vento_mag * np.sin(np.radians(ang_vento_critico))
-        
         F_re_vento_vec = forca_complexa(F_re_vento_cabos, ang_re)
         F_vante_vento_vec = forca_complexa(F_vante_vento_cabos, ang_vante)
         F_vento_vec = forca_complexa(F_vento_mag, ang_vento_critico)
@@ -544,9 +569,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         if theta_vento < 0:
             theta_vento += 360
         
-        # ===================================================
         # HIPÓTESE 4: CABO CONDUTOR ROMPIDO
-        # ===================================================
         num_fases = len(K_fases)
         indice_fase_mais_alta = np.argmax(K_fases)
         
@@ -644,9 +667,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         if theta_rompido < 0:
             theta_rompido += 360
         
-        # ===================================================
         # CORREÇÃO DUPLO T
-        # ===================================================
         comerciais = [1500, 2000, 2500, 3000, 4000]
         
         if tipo_poste == 'Duplo T':
@@ -702,7 +723,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         # ===================================================
         st.markdown("---")
         
-        # PARÂMETROS ADOTADOS (TABELA)
+        # PARÂMETROS ADOTADOS
         st.subheader("📋 PARÂMETROS ADOTADOS")
         
         parametros_dict = {
@@ -727,11 +748,10 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         df_parametros = pd.DataFrame(list(parametros_dict.items()), columns=["Parâmetro", "Valor"])
         st.dataframe(df_parametros, hide_index=True, use_container_width=True, column_order=["Parâmetro", "Valor"])
         
-        # TABELA COMPARATIVA COMPLETA
+        # TABELA COMPARATIVA
         st.markdown("---")
         st.subheader("📊 TABELA COMPARATIVA POR HIPÓTESE")
         
-        # Calcular resultante com segurança
         R_eds_com_seg = R_eds_corrigido
         R_min_com_seg = R_min_corrigido
         R_vento_com_seg = R_vento_corrigido
@@ -794,18 +814,17 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
                                   'Fator Corr.', 'Fator Seg. (%)', 'Resultante c/ Seg (kgf)',
                                   'Fator Sobrecarga', 'Esforço Final (daN)'])
         
-        # GRÁFICO DE BARRAS COMPARATIVO (NOVO)
+        # GRÁFICO DE BARRAS COM PLOTLY (NOVO DESIGN)
         st.markdown("---")
         st.subheader("📊 GRÁFICO COMPARATIVO DE ESFORÇOS")
         
         hipoteses_nomes = ['EDS', 'TEMP MÍNIMA', 'VENTO MÁXIMO', 'CABO ROMPIDO']
         esforcos = [R_eds_daN, R_min_daN, R_vento_daN, R_rompido_daN]
         
-        fig_bar = plot_grafico_barras(hipoteses_nomes, esforcos, poste_recomendado)
-        st.pyplot(fig_bar)
-        plt.close(fig_bar)
+        fig_bar = plot_grafico_barras_plotly(hipoteses_nomes, esforcos, poste_recomendado)
+        st.plotly_chart(fig_bar, use_container_width=True)
         
-        # INFORMAÇÕES ADICIONAIS (com expander)
+        # INFORMAÇÕES ADICIONAIS
         st.markdown("---")
         with st.expander("📈 INFORMAÇÕES ADICIONAIS", expanded=False):
             st.text(f"Parte aérea do poste: {parte_aerea:.2f} m")
@@ -817,7 +836,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
             if tem_pr:
                 st.text(f"   K_para-raio: {K_pr:.3f}")
         
-        # RELATÓRIO POR HIPÓTESE (com expanders)
+        # RELATÓRIO POR HIPÓTESE
         st.markdown("---")
         st.subheader("📋 RELATÓRIO POR HIPÓTESE")
         
