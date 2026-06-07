@@ -47,7 +47,7 @@ KGf_TO_DAN = 0.981
 SOBRECARGA_TRANSITORIA = 0.40
 
 # ===================================================
-# FUNÇÕES AUXILIARES (MESMAS DO COLAB)
+# FUNÇÕES AUXILIARES
 # ===================================================
 
 def mudanca_estado(T_initial, temp_initial, temp_final, peso_initial, peso_final, vao, E, S, alpha):
@@ -109,7 +109,7 @@ def encontrar_angulo_critico_vento(F_re, F_vante, ang_re, ang_vante, S_arrasto, 
     return melhor_angulo, maior_resultante
 
 def plotar_diagrama(F_re, F_vante, F_vento, F_res, ang_re, ang_vante, ang_vento, theta_res, 
-                    tipo_poste, titulo, theta_face_lisa=None, fator_correcao=1.0):
+                    tipo_poste, titulo, theta_face_lisa=None, theta_gaveta=None, fator_correcao=1.0):
     fig, ax = plt.subplots(figsize=(10, 8))
     
     max_force = max(abs(F_re), abs(F_vante), abs(F_vento), abs(F_res))
@@ -146,19 +146,21 @@ def plotar_diagrama(F_re, F_vante, F_vento, F_res, ang_re, ang_vante, ang_vento,
         ax.arrow(0, 0, x_res, y_res, head_width=0.1, head_length=0.1,
                  fc='green', ec='green', linewidth=3.5, label=f'Resultante: {F_res:.0f} kgf')
     
+    # Desenhar eixos da elipse (face lisa e gaveta) e adicionar à legenda
     if tipo_poste == 'Duplo T' and theta_face_lisa is not None:
         theta_gaveta = theta_face_lisa + 90
         
+        # Eixo da face lisa (roxo)
         x_lisa = 1.2 * np.cos(np.radians(theta_face_lisa))
         y_lisa = 1.2 * np.sin(np.radians(theta_face_lisa))
-        ax.plot([-x_lisa, x_lisa], [-y_lisa, y_lisa], 'purple', linewidth=2, linestyle='--', alpha=0.8)
-        ax.text(x_lisa*1.05, y_lisa*1.05, 'Face Lisa', color='purple', fontsize=10, alpha=0.8, fontweight='bold')
+        line_lisa, = ax.plot([-x_lisa, x_lisa], [-y_lisa, y_lisa], 'purple', linewidth=2, linestyle='--', alpha=0.8, label='Face Lisa')
         
+        # Eixo da gaveta (laranja)
         x_gaveta = 1.2 * np.cos(np.radians(theta_gaveta))
         y_gaveta = 1.2 * np.sin(np.radians(theta_gaveta))
-        ax.plot([-x_gaveta, x_gaveta], [-y_gaveta, y_gaveta], 'orange', linewidth=2, linestyle='--', alpha=0.8)
-        ax.text(x_gaveta*1.05, y_gaveta*1.05, 'Gaveta', color='orange', fontsize=10, alpha=0.8, fontweight='bold')
+        line_gaveta, = ax.plot([-x_gaveta, x_gaveta], [-y_gaveta, y_gaveta], 'orange', linewidth=2, linestyle='--', alpha=0.8, label='Gaveta')
         
+        # Elipse de correção
         if max_force > 0:
             a = 1.0 * (max_force/scale) * 0.6
             b = 0.5 * (max_force/scale) * 0.6
@@ -166,6 +168,7 @@ def plotar_diagrama(F_re, F_vante, F_vento, F_res, ang_re, ang_vante, ang_vento,
                               facecolor='none', edgecolor='gray', linestyle=':', linewidth=2, alpha=0.7)
             ax.add_patch(ellipse)
             
+            # Ponto na elipse na direção da resultante
             rad_res = np.radians(theta_res - theta_face_lisa)
             r_ellipse = (a * b) / np.sqrt((b * np.cos(rad_res))**2 + (a * np.sin(rad_res))**2)
             x_ellipse_point = r_ellipse * np.cos(np.radians(theta_res))
@@ -174,7 +177,8 @@ def plotar_diagrama(F_re, F_vante, F_vento, F_res, ang_re, ang_vante, ang_vento,
             ax.annotate(f'Fator: {fator_correcao:.3f}',
                        xy=(x_ellipse_point, y_ellipse_point),
                        xytext=(x_ellipse_point*1.1, y_ellipse_point*1.1),
-                       fontsize=8, color='black')
+                       fontsize=8, color='black',
+                       bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.7))
     
     ax.set_xlim(-1.2, 1.2)
     ax.set_ylim(-1.2, 1.2)
@@ -194,7 +198,7 @@ def plotar_diagrama(F_re, F_vante, F_vento, F_res, ang_re, ang_vante, ang_vento,
     return fig
 
 # ===================================================
-# INTERFACE STREAMLIT - TODOS OS INPUTS DO COLAB
+# INTERFACE STREAMLIT
 # ===================================================
 
 # Criar duas colunas
@@ -650,28 +654,37 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         poste_recomendado = max(poste_eds, poste_min, poste_vento, poste_rompido)
         
         # ===================================================
-        # EXIBIR RESULTADOS - IGUAL AO COLAB
+        # EXIBIR RESULTADOS
         # ===================================================
         st.markdown("---")
-        st.subheader("📋 PARÂMETROS DE PROJETO")
         
-        col_a, col_b, col_c = st.columns(3)
-        with col_a:
-            st.metric("Tipo de poste", tipo_poste)
-            st.metric("Fixação", "Suspensão" if fixacao == "suspensao" else "Ancoragem")
-            st.metric("Locação", locacao if tipo_poste == "Duplo T" else "N/A")
-            st.metric("Altura", f"{altura_poste} m")
-        with col_b:
-            st.metric("Vão ré", f"{vao_re} m")
-            st.metric("Vão vante", f"{vao_vante} m")
-            st.metric("Circuitos", num_circuitos)
-            st.metric("Deflexão (δ)", f"{delta}°")
-        with col_c:
-            st.metric("Temp EDS", f"{temp_eds} °C")
-            st.metric("Temp mínima", f"{temp_min} °C (Creep: {creep_min})")
-            st.metric("Temp vento", f"{temp_vento} °C")
-            st.metric("Pressão vento", f"{pressao_vento} kgf/m²")
+        # PARÂMETROS ADOTADOS (TABELA)
+        st.subheader("📋 PARÂMETROS ADOTADOS")
         
+        # Criar dicionário com todos os parâmetros
+        parametros_dict = {
+            "Tipo de poste": tipo_poste,
+            "Fixação": "Suspensão" if fixacao == "suspensao" else "Ancoragem",
+            "Locação": locacao if tipo_poste == "Duplo T" else "N/A",
+            "Altura": f"{altura_poste} m",
+            "Vão ré": f"{vao_re} m",
+            "Vão vante": f"{vao_vante} m",
+            "Circuitos": num_circuitos,
+            "Deflexão (δ)": f"{delta}°",
+            "Temp EDS": f"{temp_eds} °C",
+            "Temp mínima": f"{temp_min} °C",
+            "Creep temp mín": f"{creep_min} °C",
+            "Temp vento": f"{temp_vento} °C",
+            "Pressão vento": f"{pressao_vento} kgf/m²",
+            "Pressão vento reduzida": f"{pressao_vento_reduzida} kgf/m²",
+            "Fator cagaço": f"{fator_cagaco}%",
+            "Sobrecarga transitória": f"{SOBRECARGA_TRANSITORIA*100:.0f}%"
+        }
+        
+        df_parametros = pd.DataFrame(list(parametros_dict.items()), columns=["Parâmetro", "Valor"])
+        st.dataframe(df_parametros, hide_index=True, use_container_width=True)
+        
+        # TABELA COMPARATIVA
         st.markdown("---")
         st.subheader("📊 TABELA COMPARATIVA POR HIPÓTESE")
         
@@ -685,63 +698,78 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         df = pd.DataFrame(dados_tabela)
         st.dataframe(df, use_container_width=True, hide_index=True)
         
+        # INFORMAÇÕES ADICIONAIS (com expander)
         st.markdown("---")
-        st.subheader("📈 INFORMAÇÕES ADICIONAIS")
-        st.text(f"Parte aérea do poste: {parte_aerea:.2f} m")
-        st.text(f"Ponto de referência (X): {X:.2f} m do solo")
-        st.text(f"K_circuito1: {K_circ1:.3f}")
-        if is_duplo:
-            st.text(f"K_circuito2: {K_circ2:.3f}")
-        if tem_pr:
-            st.text(f"K_PR: {K_pr:.3f}")
+        with st.expander("📈 INFORMAÇÕES ADICIONAIS", expanded=False):
+            st.text(f"Parte aérea do poste: {parte_aerea:.2f} m")
+            st.text(f"Ponto de referência (X): {X:.2f} m do solo")
+            st.markdown("**Coeficiente de transferência de esforço**")
+            st.text(f"   K_circuito 1: {K_circ1:.3f}")
+            if is_duplo:
+                st.text(f"   K_circuito 2: {K_circ2:.3f}")
+            if tem_pr:
+                st.text(f"   K_para-raio: {K_pr:.3f}")
         
+        # RELATÓRIO POR HIPÓTESE (com expanders)
         st.markdown("---")
         st.subheader("📋 RELATÓRIO POR HIPÓTESE")
         
-        st.markdown("**📌 EDS**")
-        st.text(f"   Temperatura: {temp_eds} °C")
-        st.text(f"   Trações: Ré = {F_re_eds:.1f} kgf | Vante = {F_vante_eds:.1f} kgf")
-        st.text(f"   Resultante: {R_eds:.1f} kgf")
+        # EDS
+        with st.expander("📌 EDS", expanded=False):
+            st.text(f"   Temperatura: {temp_eds} °C")
+            st.text(f"   Trações: Ré = {F_re_eds:.1f} kgf | Vante = {F_vante_eds:.1f} kgf")
+            st.text(f"   Resultante: {R_eds:.1f} kgf")
         
-        st.markdown("**📌 TEMPERATURA MÍNIMA**")
-        st.text(f"   Temperatura mínima: {temp_min} °C | Creep: {creep_min} °C | Eq: {temp_min_eq:.1f} °C")
-        st.text(f"   Trações: Ré = {F_re_min:.1f} kgf | Vante = {F_vante_min:.1f} kgf")
-        st.text(f"   Resultante: {R_min:.1f} kgf")
+        # TEMP MÍNIMA
+        with st.expander("📌 TEMPERATURA MÍNIMA", expanded=False):
+            st.text(f"   Temperatura mínima: {temp_min} °C | Creep: {creep_min} °C | Eq: {temp_min_eq:.1f} °C")
+            st.text(f"   Trações: Ré = {F_re_min:.1f} kgf | Vante = {F_vante_min:.1f} kgf")
+            st.text(f"   Resultante: {R_min:.1f} kgf")
         
-        st.markdown("**🌬️ VENTO MÁXIMO**")
-        st.text(f"   Temperatura vento: {temp_vento} °C | Pressão: {pressao_vento} kgf/m²")
-        st.text(f"   Peso composto: {peso_composto:.4f} kgf/m")
-        st.text(f"   Ângulo crítico do vento: {ang_vento_critico:.1f}°")
-        st.text(f"   Trações (cabos): Ré = {F_re_vento_cabos:.1f} kgf | Vante = {F_vante_vento_cabos:.1f} kgf")
-        st.text(f"   Força de arrasto: {F_vento_mag:.1f} kgf")
-        st.text(f"   Resultante total: {R_vento:.1f} kgf")
+        # VENTO MÁXIMO
+        with st.expander("🌬️ VENTO MÁXIMO", expanded=False):
+            st.text(f"   Temperatura vento: {temp_vento} °C | Pressão: {pressao_vento} kgf/m²")
+            st.text(f"   Peso composto: {peso_composto:.4f} kgf/m")
+            st.text(f"   Ângulo crítico do vento: {ang_vento_critico:.1f}°")
+            st.text(f"   Trações (cabos): Ré = {F_re_vento_cabos:.1f} kgf | Vante = {F_vante_vento_cabos:.1f} kgf")
+            st.text(f"   Força de arrasto: {F_vento_mag:.1f} kgf")
+            st.text(f"   Resultante total: {R_vento:.1f} kgf")
         
-        st.markdown("**💔 CABO ROMPIDO**")
-        st.text(f"   Pressão vento reduzida: {pressao_vento_reduzida} kgf/m²")
-        st.text(f"   Fase mais alta: Fase {indice_fase_mais_alta + 1} (K = {K_fases[indice_fase_mais_alta]:.3f})")
-        st.text(f"   Ângulo crítico do vento: {ang_vento_rompido_critico:.1f}°")
-        st.text(f"   Resultante sem vento:")
-        st.text(f"      Cenário A (rompe ré): {R_rompido_A:.1f} kgf")
-        st.text(f"      Cenário B (rompe vante): {R_rompido_B:.1f} kgf")
-        st.text(f"   Pior cenário: {pior_cenario}")
-        st.text(f"   Trações (pior cenário): Ré = {F_re_rompido_final:.1f} kgf | Vante = {F_vante_rompido_final:.1f} kgf")
-        st.text(f"   Força de arrasto: {F_vento_rompido_mag:.1f} kgf")
-        st.text(f"   Resultante total com vento: {R_rompido:.1f} kgf")
+        # CABO ROMPIDO
+        with st.expander("💔 CABO ROMPIDO", expanded=False):
+            st.text(f"   Pressão vento reduzida: {pressao_vento_reduzida} kgf/m²")
+            st.text(f"   Fase mais alta: Fase {indice_fase_mais_alta + 1} (K = {K_fases[indice_fase_mais_alta]:.3f})")
+            st.text(f"   Ângulo crítico do vento: {ang_vento_rompido_critico:.1f}°")
+            st.text(f"   Resultante sem vento:")
+            st.text(f"      Cenário A (rompe ré): {R_rompido_A:.1f} kgf")
+            st.text(f"      Cenário B (rompe vante): {R_rompido_B:.1f} kgf")
+            st.text(f"   Pior cenário: {pior_cenario}")
+            st.text(f"   Trações (pior cenário): Ré = {F_re_rompido_final:.1f} kgf | Vante = {F_vante_rompido_final:.1f} kgf")
+            st.text(f"   Força de arrasto: {F_vento_rompido_mag:.1f} kgf")
+            st.text(f"   Resultante total com vento: {R_rompido:.1f} kgf")
         
+        # CONCLUSÃO
         st.markdown("---")
         st.subheader("🎯 CONCLUSÃO")
         
-        st.text(f"   EDS: {R_eds_daN:.1f} daN → Poste {poste_eds} daN")
-        st.text(f"   TEMP MÍNIMA: {R_min_daN:.1f} daN → Poste {poste_min} daN")
-        st.text(f"   VENTO MÁXIMO: {R_vento_daN:.1f} daN → Poste {poste_vento} daN")
-        st.text(f"   CABO ROMPIDO: {R_rompido_daN:.1f} daN → Poste {poste_rompido} daN")
+        col_res1, col_res2, col_res3 = st.columns(3)
+        with col_res1:
+            st.metric("EDS", f"{R_eds_daN:.1f} daN", f"Poste {poste_eds} daN")
+        with col_res2:
+            st.metric("TEMP MÍNIMA", f"{R_min_daN:.1f} daN", f"Poste {poste_min} daN")
+        with col_res3:
+            st.metric("VENTO MÁXIMO", f"{R_vento_daN:.1f} daN", f"Poste {poste_vento} daN")
         
-        st.metric("Poste comercial recomendado", f"{poste_recomendado} daN")
+        col_res4, col_res5 = st.columns(2)
+        with col_res4:
+            st.metric("CABO ROMPIDO", f"{R_rompido_daN:.1f} daN", f"Poste {poste_rompido} daN")
+        with col_res5:
+            st.metric("Poste recomendado", f"{poste_recomendado} daN")
         
         if R_eds_daN > 4000 or R_min_daN > 4000 or R_vento_daN > 4000 or R_rompido_daN > 4000:
             st.warning("⚠️ ATENÇÃO: Esforço calculado > 4000 daN. Não há poste comercial disponível com esta capacidade.")
         
-        # Diagramas em abas
+        # DIAGRAMAS EM ABAS
         st.markdown("---")
         st.subheader("📈 DIAGRAMAS VETORIAIS")
         
@@ -753,6 +781,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
                 ang_re, ang_vante, 0, theta_eds,
                 tipo_poste, f"EDS - Resultante: {R_eds_daN:.1f} daN",
                 theta_face if tipo_poste == 'Duplo T' else None,
+                None,
                 fator_eds if tipo_poste == 'Duplo T' else None
             )
             st.pyplot(fig1)
@@ -764,6 +793,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
                 ang_re, ang_vante, 0, theta_min,
                 tipo_poste, f"TEMP MÍNIMA - Resultante: {R_min_daN:.1f} daN",
                 theta_face if tipo_poste == 'Duplo T' else None,
+                None,
                 fator_min if tipo_poste == 'Duplo T' else None
             )
             st.pyplot(fig2)
@@ -775,6 +805,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
                 ang_re, ang_vante, ang_vento_critico, theta_vento,
                 tipo_poste, f"VENTO MÁXIMO - Resultante: {R_vento_daN:.1f} daN",
                 theta_face if tipo_poste == 'Duplo T' else None,
+                None,
                 fator_vento if tipo_poste == 'Duplo T' else None
             )
             st.pyplot(fig3)
@@ -786,6 +817,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
                 ang_re, ang_vante, ang_vento_rompido_critico, theta_rompido,
                 tipo_poste, f"CABO ROMPIDO - Resultante: {R_rompido_daN:.1f} daN",
                 theta_face if tipo_poste == 'Duplo T' else None,
+                None,
                 fator_rompido if tipo_poste == 'Duplo T' else None
             )
             st.pyplot(fig4)
