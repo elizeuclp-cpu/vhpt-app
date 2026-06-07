@@ -661,7 +661,6 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         # PARÂMETROS ADOTADOS (TABELA)
         st.subheader("📋 PARÂMETROS ADOTADOS")
         
-        # Criar dicionário com todos os parâmetros
         parametros_dict = {
             "Tipo de poste": tipo_poste,
             "Fixação": "Suspensão" if fixacao == "suspensao" else "Ancoragem",
@@ -682,21 +681,74 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         }
         
         df_parametros = pd.DataFrame(list(parametros_dict.items()), columns=["Parâmetro", "Valor"])
-        st.dataframe(df_parametros, hide_index=True, use_container_width=True)
+        st.dataframe(df_parametros, hide_index=True, use_container_width=True, column_order=["Parâmetro", "Valor"])
         
-        # TABELA COMPARATIVA
+        # TABELA COMPARATIVA COMPLETA (COMO NO COLAB V2.3)
         st.markdown("---")
         st.subheader("📊 TABELA COMPARATIVA POR HIPÓTESE")
         
+        # Calcular resultante com segurança
+        R_eds_com_seg = R_eds_corrigido
+        R_min_com_seg = R_min_corrigido
+        R_vento_com_seg = R_vento_corrigido
+        R_rompido_com_seg = R_rompido_corrigido
+        
         dados_tabela = [
-            {'Hipótese': 'EDS', 'Tração Ré (kgf)': f"{F_re_eds:.1f}", 'Tração Vante (kgf)': f"{F_vante_eds:.1f}", 'Força Vento (kgf)': '-', 'Resultante (kgf)': f"{R_eds:.1f}", 'Ângulo (°)': f"{theta_eds:.1f}", 'Fator Corr.': f"{fator_eds:.3f}", 'Esforço Final (daN)': f"{R_eds_daN:.1f}"},
-            {'Hipótese': 'TEMP MÍNIMA', 'Tração Ré (kgf)': f"{F_re_min:.1f}", 'Tração Vante (kgf)': f"{F_vante_min:.1f}", 'Força Vento (kgf)': '-', 'Resultante (kgf)': f"{R_min:.1f}", 'Ângulo (°)': f"{theta_min:.1f}", 'Fator Corr.': f"{fator_min:.3f}", 'Esforço Final (daN)': f"{R_min_daN:.1f}"},
-            {'Hipótese': 'VENTO MÁXIMO', 'Tração Ré (kgf)': f"{F_re_vento_cabos:.1f}", 'Tração Vante (kgf)': f"{F_vante_vento_cabos:.1f}", 'Força Vento (kgf)': f"{F_vento_mag:.1f}", 'Resultante (kgf)': f"{R_vento:.1f}", 'Ângulo (°)': f"{theta_vento:.1f}", 'Fator Corr.': f"{fator_vento:.3f}", 'Esforço Final (daN)': f"{R_vento_daN:.1f}"},
-            {'Hipótese': 'CABO ROMPIDO', 'Tração Ré (kgf)': f"{F_re_rompido_final:.1f}", 'Tração Vante (kgf)': f"{F_vante_rompido_final:.1f}", 'Força Vento (kgf)': f"{F_vento_rompido_mag:.1f}", 'Resultante (kgf)': f"{R_rompido:.1f}", 'Ângulo (°)': f"{theta_rompido:.1f}", 'Fator Corr.': f"{fator_rompido:.3f}", 'Esforço Final (daN)': f"{R_rompido_daN:.1f}"}
+            {'Hipótese': 'EDS', 
+             'Tração Ré (kgf)': f"{F_re_eds:.1f}", 
+             'Tração Vante (kgf)': f"{F_vante_eds:.1f}", 
+             'Força Vento (kgf)': '-', 
+             'Resultante (kgf)': f"{R_eds:.1f}", 
+             'Ângulo (°)': f"{theta_eds:.1f}", 
+             'Fator Corr.': f"{fator_eds:.3f}",
+             'Fator Seg. (%)': f"{fator_cagaco}",
+             'Resultante c/ Seg (kgf)': f"{R_eds_com_seg:.1f}",
+             'Fator Sobrecarga': '1.00',
+             'Esforço Final (daN)': f"{R_eds_daN:.1f}"},
+            
+            {'Hipótese': 'TEMP MÍNIMA', 
+             'Tração Ré (kgf)': f"{F_re_min:.1f}", 
+             'Tração Vante (kgf)': f"{F_vante_min:.1f}", 
+             'Força Vento (kgf)': '-', 
+             'Resultante (kgf)': f"{R_min:.1f}", 
+             'Ângulo (°)': f"{theta_min:.1f}", 
+             'Fator Corr.': f"{fator_min:.3f}",
+             'Fator Seg. (%)': f"{fator_cagaco}",
+             'Resultante c/ Seg (kgf)': f"{R_min_com_seg:.1f}",
+             'Fator Sobrecarga': f"{1 + SOBRECARGA_TRANSITORIA:.2f}",
+             'Esforço Final (daN)': f"{R_min_daN:.1f}"},
+            
+            {'Hipótese': 'VENTO MÁXIMO', 
+             'Tração Ré (kgf)': f"{F_re_vento_cabos:.1f}", 
+             'Tração Vante (kgf)': f"{F_vante_vento_cabos:.1f}", 
+             'Força Vento (kgf)': f"{F_vento_mag:.1f}", 
+             'Resultante (kgf)': f"{R_vento:.1f}", 
+             'Ângulo (°)': f"{theta_vento:.1f}", 
+             'Fator Corr.': f"{fator_vento:.3f}",
+             'Fator Seg. (%)': f"{fator_cagaco}",
+             'Resultante c/ Seg (kgf)': f"{R_vento_com_seg:.1f}",
+             'Fator Sobrecarga': f"{1 + SOBRECARGA_TRANSITORIA:.2f}",
+             'Esforço Final (daN)': f"{R_vento_daN:.1f}"},
+            
+            {'Hipótese': 'CABO ROMPIDO', 
+             'Tração Ré (kgf)': f"{F_re_rompido_final:.1f}", 
+             'Tração Vante (kgf)': f"{F_vante_rompido_final:.1f}", 
+             'Força Vento (kgf)': f"{F_vento_rompido_mag:.1f}", 
+             'Resultante (kgf)': f"{R_rompido:.1f}", 
+             'Ângulo (°)': f"{theta_rompido:.1f}", 
+             'Fator Corr.': f"{fator_rompido:.3f}",
+             'Fator Seg. (%)': f"{fator_cagaco}",
+             'Resultante c/ Seg (kgf)': f"{R_rompido_com_seg:.1f}",
+             'Fator Sobrecarga': f"{1 + SOBRECARGA_TRANSITORIA:.2f}",
+             'Esforço Final (daN)': f"{R_rompido_daN:.1f}"}
         ]
         
         df = pd.DataFrame(dados_tabela)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, use_container_width=True, hide_index=True,
+                     column_order=['Hipótese', 'Tração Ré (kgf)', 'Tração Vante (kgf)', 
+                                  'Força Vento (kgf)', 'Resultante (kgf)', 'Ângulo (°)', 
+                                  'Fator Corr.', 'Fator Seg. (%)', 'Resultante c/ Seg (kgf)',
+                                  'Fator Sobrecarga', 'Esforço Final (daN)'])
         
         # INFORMAÇÕES ADICIONAIS (com expander)
         st.markdown("---")
@@ -714,19 +766,16 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         st.markdown("---")
         st.subheader("📋 RELATÓRIO POR HIPÓTESE")
         
-        # EDS
         with st.expander("📌 EDS", expanded=False):
             st.text(f"   Temperatura: {temp_eds} °C")
             st.text(f"   Trações: Ré = {F_re_eds:.1f} kgf | Vante = {F_vante_eds:.1f} kgf")
             st.text(f"   Resultante: {R_eds:.1f} kgf")
         
-        # TEMP MÍNIMA
         with st.expander("📌 TEMPERATURA MÍNIMA", expanded=False):
             st.text(f"   Temperatura mínima: {temp_min} °C | Creep: {creep_min} °C | Eq: {temp_min_eq:.1f} °C")
             st.text(f"   Trações: Ré = {F_re_min:.1f} kgf | Vante = {F_vante_min:.1f} kgf")
             st.text(f"   Resultante: {R_min:.1f} kgf")
         
-        # VENTO MÁXIMO
         with st.expander("🌬️ VENTO MÁXIMO", expanded=False):
             st.text(f"   Temperatura vento: {temp_vento} °C | Pressão: {pressao_vento} kgf/m²")
             st.text(f"   Peso composto: {peso_composto:.4f} kgf/m")
@@ -735,7 +784,6 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
             st.text(f"   Força de arrasto: {F_vento_mag:.1f} kgf")
             st.text(f"   Resultante total: {R_vento:.1f} kgf")
         
-        # CABO ROMPIDO
         with st.expander("💔 CABO ROMPIDO", expanded=False):
             st.text(f"   Pressão vento reduzida: {pressao_vento_reduzida} kgf/m²")
             st.text(f"   Fase mais alta: Fase {indice_fase_mais_alta + 1} (K = {K_fases[indice_fase_mais_alta]:.3f})")
