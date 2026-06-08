@@ -876,4 +876,4 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
     except Exception as e:
         st.error(f"❌ Erro no cálculo: {e}")
         st.exception(e)
-``
+
