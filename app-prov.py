@@ -52,34 +52,72 @@ SOBRECARGA_TRANSITORIA = 0.40
 # ===================================================
 @st.cache_data
 def carregar_estruturas():
-    """Carrega estruturas do arquivo estruturas.xlsx se existir"""
-    if os.path.exists("estruturas.xlsx"):
+    """Carrega estruturas liberadas do arquivo estruturas.xlsx se existir."""
+    if not os.path.exists("estruturas.xlsx"):
+        return []
+
+    def _float_ou_padrao(valor, padrao):
         try:
-            df = pd.read_excel("estruturas.xlsx", header=None)
-            estruturas = []
-            for idx, row in df.iterrows():
-                liberacao = str(row[1]).upper() if pd.notna(row[1]) else ""
-                if liberacao == "SIM":
-                    estrutura = {
-                        'nome': str(row[0]) if pd.notna(row[0]) else f"Estrutura_{idx}",
-                        'tipo_poste': 'Circular' if str(row[2]).upper() == 'C' else 'Duplo T',
-                        'fixacao': 'suspensao' if str(row[5]).upper() == 'S' else 'ancoragem',
-                        'locacao': str(row[9]) if pd.notna(row[9]) else 'L3',
-                        'circuito': 'Circuito Duplo' if str(row[4]).upper() == 'CD' else 'Circuito Simples',
-                        'tem_pr': str(row[10]).upper() == 'S' if pd.notna(row[10]) else False,
-                        'dist_pr': float(row[12]) if pd.notna(row[12]) else 0.20,
-                        'dist_f1': float(row[13]) if pd.notna(row[13]) else 0.20,
-                        'dist_f2': float(row[14]) if pd.notna(row[14]) else 2.20,
-                        'dist_f3': float(row[15]) if pd.notna(row[15]) else 4.20,
-                        'dist_f4': float(row[16]) if pd.notna(row[16]) else 6.20,
-                        'dist_f5': float(row[17]) if pd.notna(row[17]) else 8.20,
-                        'dist_f6': float(row[18]) if pd.notna(row[18]) else 10.20,
-                    }
-                    estruturas.append(estrutura)
-            return estruturas
+            if pd.isna(valor):
+                return padrao
+            texto = str(valor).strip().upper()
+            if texto in ["", "N/A", "X", "NONE"]:
+                return padrao
+            return float(valor)
         except:
-            return []
-    return []
+            return padrao
+
+    try:
+        df = pd.read_excel("estruturas.xlsx", engine="openpyxl")
+
+        estruturas = []
+        for _, row in df.iterrows():
+            liberacao = str(row.iloc[1]).strip().upper() if pd.notna(row.iloc[1]) else ""
+            if liberacao != "SIM":
+                continue
+
+            poste_cod = str(row.iloc[2]).strip().upper() if pd.notna(row.iloc[2]) else ""
+            fixacao_cod = str(row.iloc[5]).strip().upper() if pd.notna(row.iloc[5]) else ""
+            circuito_cod = str(row.iloc[4]).strip().upper() if pd.notna(row.iloc[4]) else ""
+            pr_cod = str(row.iloc[10]).strip().upper() if pd.notna(row.iloc[10]) else ""
+            locacao_raw = str(row.iloc[9]).strip().upper() if pd.notna(row.iloc[9]) else ""
+
+            tipo_poste = "Circular" if poste_cod == "C" else "Duplo T"
+            fixacao = "suspensao" if fixacao_cod == "S" else "ancoragem"
+            num_circuitos = "Circuito Duplo" if circuito_cod == "CD" else "Circuito Simples"
+            tem_pr = pr_cod == "S"
+
+            if tipo_poste == "Circular":
+                locacao = "N/A"
+            else:
+                if locacao_raw in ["L1", "L2", "L3", "L4", "L5"]:
+                    locacao = locacao_raw
+                else:
+                    locacao = "L1" if fixacao == "suspensao" else "L3"
+
+            estrutura = {
+                "nome": str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else "",
+                "tipo_poste": tipo_poste,
+                "fixacao": fixacao,
+                "locacao": locacao,
+                "num_circuitos": num_circuitos,
+                "tem_pr": tem_pr,
+                "dist_pr": _float_ou_padrao(row.iloc[12] if len(row) > 12 else None, 0.20),
+                "dist_f1": _float_ou_padrao(row.iloc[13] if len(row) > 13 else None, 0.20),
+                "dist_f2": _float_ou_padrao(row.iloc[14] if len(row) > 14 else None, 2.20),
+                "dist_f3": _float_ou_padrao(row.iloc[15] if len(row) > 15 else None, 4.20),
+                "dist_f4": _float_ou_padrao(row.iloc[16] if len(row) > 16 else None, 6.20),
+                "dist_f5": _float_ou_padrao(row.iloc[17] if len(row) > 17 else None, 8.20),
+                "dist_f6": _float_ou_padrao(row.iloc[18] if len(row) > 18 else None, 10.20),
+            }
+
+            if estrutura["nome"]:
+                estruturas.append(estrutura)
+
+        return estruturas
+
+    except:
+        return []
 
 # ===================================================
 # FUNÇÕES AUXILIARES
@@ -232,23 +270,62 @@ def plotar_diagrama(F_re, F_vante, F_vento, F_res, ang_re, ang_vante, ang_vento,
 # ===================================================
 estruturas = carregar_estruturas()
 tem_estruturas = len(estruturas) > 0
+estruturas_dict = {e["nome"]: e for e in estruturas}
 
-# Inicializar session_state para valores da estrutura
-if "valores_estrutura" not in st.session_state:
-    st.session_state.valores_estrutura = {
-        'tipo_poste': "Duplo T",
-        'fixacao': "ancoragem",
-        'locacao': "L3",
-        'num_circuitos': "Circuito Simples",
-        'tem_pr': False,
-        'dist_f1': 0.20,
-        'dist_f2': 2.20,
-        'dist_f3': 4.20,
-        'dist_f4': 6.20,
-        'dist_f5': 8.20,
-        'dist_f6': 10.20,
-        'dist_pr': 0.20
-    }
+# ===================================================
+# DEFAULTS DOS CAMPOS CONTROLADOS PELA ESTRUTURA
+# ===================================================
+defaults_estrutura = {
+    "tipo_poste": "Duplo T",
+    "fixacao": "ancoragem",
+    "locacao": "L3",
+    "num_circuitos": "Circuito Simples",
+    "tem_pr": False,
+    "dist_pr": 0.20,
+    "dist_f1": 0.20,
+    "dist_f2": 2.20,
+    "dist_f3": 4.20,
+    "dist_f4": 6.20,
+    "dist_f5": 8.20,
+    "dist_f6": 10.20,
+}
+
+for chave, valor in defaults_estrutura.items():
+    if chave not in st.session_state:
+        st.session_state[chave] = valor
+
+if "tipo_estrutura_opcional" not in st.session_state:
+    st.session_state["tipo_estrutura_opcional"] = ""
+
+def aplicar_estrutura_selecionada():
+    """
+    Aplica os valores da estrutura selecionada aos campos a) até h)
+    e limpa o seletor para permitir selecionar a MESMA estrutura novamente.
+    """
+    nome = st.session_state.get("tipo_estrutura_opcional", "")
+    if not nome:
+        return
+
+    estrutura = estruturas_dict.get(nome)
+    if not estrutura:
+        st.session_state["tipo_estrutura_opcional"] = ""
+        return
+
+    st.session_state["tipo_poste"] = estrutura["tipo_poste"]
+    st.session_state["fixacao"] = estrutura["fixacao"]
+    st.session_state["locacao"] = estrutura["locacao"]
+    st.session_state["num_circuitos"] = estrutura["num_circuitos"]
+    st.session_state["tem_pr"] = estrutura["tem_pr"]
+    st.session_state["dist_pr"] = estrutura["dist_pr"]
+    st.session_state["dist_f1"] = estrutura["dist_f1"]
+    st.session_state["dist_f2"] = estrutura["dist_f2"]
+    st.session_state["dist_f3"] = estrutura["dist_f3"]
+    st.session_state["dist_f4"] = estrutura["dist_f4"]
+    st.session_state["dist_f5"] = estrutura["dist_f5"]
+    st.session_state["dist_f6"] = estrutura["dist_f6"]
+
+    # Limpa o seletor para permitir selecionar a mesma estrutura novamente
+    st.session_state["tipo_estrutura_opcional"] = ""
 
 # ===================================================
 # INTERFACE STREAMLIT - 2 COLUNAS
@@ -258,121 +335,125 @@ col1, col2 = st.columns([1, 1], gap="medium")
 
 with col1:
     st.subheader("🏗️ 1. CONFIGURAÇÃO DO POSTE")
-    
-    # Seletor de estruturas e botão ATUALIZAR
+
     if tem_estruturas:
-        nomes_estruturas = [e['nome'] for e in estruturas]
-        estrutura_selecionada = st.selectbox("Selecionar estrutura", [""] + nomes_estruturas, index=0)
-        
-        if st.button("📌 Atualizar", use_container_width=True):
-            if estrutura_selecionada:
-                estrutura_atual = next((e for e in estruturas if e['nome'] == estrutura_selecionada), None)
-                if estrutura_atual:
-                    st.session_state.valores_estrutura['tipo_poste'] = estrutura_atual['tipo_poste']
-                    st.session_state.valores_estrutura['fixacao'] = estrutura_atual['fixacao']
-                    st.session_state.valores_estrutura['locacao'] = estrutura_atual['locacao']
-                    st.session_state.valores_estrutura['num_circuitos'] = estrutura_atual['circuito']
-                    st.session_state.valores_estrutura['tem_pr'] = estrutura_atual['tem_pr']
-                    st.session_state.valores_estrutura['dist_f1'] = estrutura_atual['dist_f1']
-                    st.session_state.valores_estrutura['dist_f2'] = estrutura_atual['dist_f2']
-                    st.session_state.valores_estrutura['dist_f3'] = estrutura_atual['dist_f3']
-                    st.session_state.valores_estrutura['dist_f4'] = estrutura_atual['dist_f4']
-                    st.session_state.valores_estrutura['dist_f5'] = estrutura_atual['dist_f5']
-                    st.session_state.valores_estrutura['dist_f6'] = estrutura_atual['dist_f6']
-                    st.session_state.valores_estrutura['dist_pr'] = estrutura_atual['dist_pr']
-                    st.rerun()
-            else:
-                st.warning("Selecione uma estrutura.")
-    
-    # INPUTS (lendo e atualizando session_state)
+        nomes_estruturas = [e["nome"] for e in estruturas]
+        st.selectbox(
+            "Tipo de estrutura (Opcional)",
+            [""] + nomes_estruturas,
+            key="tipo_estrutura_opcional",
+            format_func=lambda x: "Selecione uma estrutura liberada" if x == "" else x,
+            on_change=aplicar_estrutura_selecionada
+        )
+
     tipo_poste = st.selectbox(
-        "Tipo de poste", 
-        ["Circular", "Duplo T"], 
-        index=0 if st.session_state.valores_estrutura['tipo_poste'] == "Circular" else 1
+        "Tipo de poste",
+        ["Circular", "Duplo T"],
+        key="tipo_poste"
     )
-    st.session_state.valores_estrutura['tipo_poste'] = tipo_poste
-    
+
     fixacao = st.selectbox(
-        "Tipo de fixação", 
-        ["suspensao", "ancoragem"], 
-        index=0 if st.session_state.valores_estrutura['fixacao'] == "suspensao" else 1,
+        "Tipo de fixação",
+        ["suspensao", "ancoragem"],
+        key="fixacao",
         format_func=lambda x: "Suspensão" if x == "suspensao" else "Ancoragem"
     )
-    st.session_state.valores_estrutura['fixacao'] = fixacao
-    
-    if fixacao == "suspensao":
+
+    if tipo_poste == "Circular":
+        if st.session_state.get("locacao") != "N/A":
+            st.session_state["locacao"] = "N/A"
+
         locacao = st.selectbox(
-            "Locação (Duplo T)", 
-            ["L1", "L2"], 
-            index=0 if st.session_state.valores_estrutura['locacao'] == "L1" else 1
+            "Locação (Duplo T)",
+            ["N/A"],
+            key="locacao",
+            disabled=True
         )
-        st.session_state.valores_estrutura['locacao'] = locacao
-        deflexao = 0
-        st.info("⚠️ Em suspensão, o ângulo de deflexão é zero (estrutura em alinhamento)")
+        st.info("⚠️ Locação indisponível para postes circulares!")
+
+        if fixacao == "suspensao":
+            deflexao = 0
+            st.info("⚠️ Em suspensão, o ângulo de deflexão é zero (estrutura em alinhamento)")
+        else:
+            deflexao = st.slider("Ângulo de deflexão (°)", 0, 150, 30, 1)
+
     else:
-        locacao = st.selectbox(
-            "Locação (Duplo T)", 
-            ["L3", "L4", "L5"], 
-            index=0 if st.session_state.valores_estrutura['locacao'] == "L3" else 1 if st.session_state.valores_estrutura['locacao'] == "L4" else 2
-        )
-        st.session_state.valores_estrutura['locacao'] = locacao
-        deflexao = st.slider("Ângulo de deflexão (°)", 0, 150, 30, 1)
-    
+        if fixacao == "suspensao":
+            if st.session_state.get("locacao") not in ["L1", "L2"]:
+                st.session_state["locacao"] = "L1"
+
+            locacao = st.selectbox(
+                "Locação (Duplo T)",
+                ["L1", "L2"],
+                key="locacao"
+            )
+            deflexao = 0
+            st.info("⚠️ Em suspensão, o ângulo de deflexão é zero (estrutura em alinhamento)")
+        else:
+            if st.session_state.get("locacao") not in ["L3", "L4", "L5"]:
+                st.session_state["locacao"] = "L3"
+
+            locacao = st.selectbox(
+                "Locação (Duplo T)",
+                ["L3", "L4", "L5"],
+                key="locacao"
+            )
+            deflexao = st.slider("Ângulo de deflexão (°)", 0, 150, 30, 1)
+
     altura_poste = st.selectbox("Altura do poste (m)", [14, 16, 18, 20, 22, 24, 26, 28, 30, 32], index=4)
-    
+
     st.markdown("---")
     st.subheader("📏 2. VÃOS E CIRCUITOS")
-    
+
     vao_re = st.number_input("Vão ré (m)", min_value=1, max_value=600, value=100, step=1)
     vao_vante = st.number_input("Vão vante (m)", min_value=1, max_value=600, value=100, step=1)
-    
+
     num_circuitos = st.selectbox(
-        "Circuitos", 
-        ["Circuito Simples", "Circuito Duplo"], 
-        index=0 if st.session_state.valores_estrutura['num_circuitos'] == "Circuito Simples" else 1
+        "Circuitos",
+        ["Circuito Simples", "Circuito Duplo"],
+        key="num_circuitos"
     )
-    st.session_state.valores_estrutura['num_circuitos'] = num_circuitos
     is_duplo = (num_circuitos == "Circuito Duplo")
-    
+
     st.markdown("---")
     st.subheader("🌡️ 3. PARÂMETROS METEOROLÓGICOS")
-    
+
     temp_eds = st.number_input("Temperatura EDS (°C)", value=20.0, step=0.5)
     temp_min = st.number_input("Temperatura mínima (°C)", value=5.0, step=0.5)
     creep_min = st.number_input("Creep temp mínima (°C)", value=0.0, step=0.5)
     temp_vento = st.number_input("Temperatura vento (°C)", value=15.0, step=0.5)
     pressao_vento = st.number_input("Pressão vento (kgf/m²)", value=30.0, step=1.0)
     pressao_vento_reduzida = st.number_input("Pressão vento reduzida (kgf/m²)", value=15.0, step=1.0)
-    
+
     st.markdown("---")
     st.subheader("🔒 4. FATOR DE SEGURANÇA")
-    
+
     fator_cagaco = st.slider("Fator cagaço (%)", 0, 20, 0, 1)
 
 with col2:
     st.subheader("⚡ 5. CABO CONDUTOR - CIRCUITO 1")
-    
+
     cabos_nomes = [cabos_data[i]['nome'] for i in cabos_data.keys()]
     cabo_circ1 = st.selectbox("Tipo de cabo (Circ1)", cabos_nomes, index=1)
     caboid1 = [i for i in cabos_data.keys() if cabos_data[i]['nome'] == cabo_circ1][0]
-    
+
     perc_re_circ1 = st.number_input("%CR ré (Circ1)", min_value=0.0, max_value=100.0, value=5.0, step=0.5)
-    
+
     if fixacao == "suspensao":
         perc_vante_circ1 = perc_re_circ1
         st.info("⚠️ Em suspensão, a tração do vante é igual ao ré")
     else:
         perc_vante_circ1 = st.number_input("%CR vante (Circ1)", min_value=0.0, max_value=100.0, value=5.0, step=0.5)
-    
+
     if is_duplo:
         st.markdown("---")
         st.subheader("⚡ 5.2 CABO CONDUTOR - CIRCUITO 2")
-        
+
         cabo_circ2 = st.selectbox("Tipo de cabo (Circ2)", cabos_nomes, index=1)
         caboid2 = [i for i in cabos_data.keys() if cabos_data[i]['nome'] == cabo_circ2][0]
-        
+
         perc_re_circ2 = st.number_input("%CR ré (Circ2)", min_value=0.0, max_value=100.0, value=5.0, step=0.5)
-        
+
         if fixacao == "suspensao":
             perc_vante_circ2 = perc_re_circ2
         else:
@@ -381,49 +462,41 @@ with col2:
         caboid2 = None
         perc_re_circ2 = 0
         perc_vante_circ2 = 0
-    
+
     st.markdown("---")
     st.subheader("📏 6. GEOMETRIA DAS FASES")
-    
+
     st.markdown("**Circuito 1:**")
     col_f1, col_f2, col_f3 = st.columns(3)
     with col_f1:
-        dist_f1 = st.number_input("Fase 1 (m)", value=st.session_state.valores_estrutura['dist_f1'], step=0.05)
-        st.session_state.valores_estrutura['dist_f1'] = dist_f1
+        dist_f1 = st.number_input("Fase 1 (m)", key="dist_f1", step=0.05)
     with col_f2:
-        dist_f2 = st.number_input("Fase 2 (m)", value=st.session_state.valores_estrutura['dist_f2'], step=0.05)
-        st.session_state.valores_estrutura['dist_f2'] = dist_f2
+        dist_f2 = st.number_input("Fase 2 (m)", key="dist_f2", step=0.05)
     with col_f3:
-        dist_f3 = st.number_input("Fase 3 (m)", value=st.session_state.valores_estrutura['dist_f3'], step=0.05)
-        st.session_state.valores_estrutura['dist_f3'] = dist_f3
-    
+        dist_f3 = st.number_input("Fase 3 (m)", key="dist_f3", step=0.05)
+
     if is_duplo:
         st.markdown("**Circuito 2:**")
         col_f4, col_f5, col_f6 = st.columns(3)
         with col_f4:
-            dist_f4 = st.number_input("Fase 4 (m)", value=st.session_state.valores_estrutura['dist_f4'], step=0.05)
-            st.session_state.valores_estrutura['dist_f4'] = dist_f4
+            dist_f4 = st.number_input("Fase 4 (m)", key="dist_f4", step=0.05)
         with col_f5:
-            dist_f5 = st.number_input("Fase 5 (m)", value=st.session_state.valores_estrutura['dist_f5'], step=0.05)
-            st.session_state.valores_estrutura['dist_f5'] = dist_f5
+            dist_f5 = st.number_input("Fase 5 (m)", key="dist_f5", step=0.05)
         with col_f6:
-            dist_f6 = st.number_input("Fase 6 (m)", value=st.session_state.valores_estrutura['dist_f6'], step=0.05)
-            st.session_state.valores_estrutura['dist_f6'] = dist_f6
+            dist_f6 = st.number_input("Fase 6 (m)", key="dist_f6", step=0.05)
         dist_fases = [dist_f1, dist_f2, dist_f3, dist_f4, dist_f5, dist_f6]
     else:
         dist_fases = [dist_f1, dist_f2, dist_f3]
-    
+
     st.markdown("---")
     st.subheader("⚡ 7. CABO PARA-RAIOS")
-    
-    tem_pr = st.checkbox("Possui cabo para-raios?", value=st.session_state.valores_estrutura['tem_pr'])
-    st.session_state.valores_estrutura['tem_pr'] = tem_pr
-    
+
+    tem_pr = st.checkbox("Possui cabo para-raios?", key="tem_pr")
+
     if tem_pr:
         tipo_pr = st.selectbox("Tipo de PR", ["Tipo A", "Tipo B", "Tipo C"], index=0)
-        dist_pr = st.number_input("Distância PR ao topo (m)", value=st.session_state.valores_estrutura['dist_pr'], step=0.05)
-        st.session_state.valores_estrutura['dist_pr'] = dist_pr
-        
+        dist_pr = st.number_input("Distância PR ao topo (m)", key="dist_pr", step=0.05)
+
         col_pr_re, col_pr_vante = st.columns(2)
         with col_pr_re:
             perc_pr_re = st.number_input("%CR ré (PR)", min_value=0.0, max_value=50.0, value=5.0, step=0.5)
@@ -437,10 +510,10 @@ with col2:
         dist_pr = None
         perc_pr_re = 0
         perc_pr_vante = 0
-    
+
     st.markdown("---")
     st.subheader("⚙️ 8. CONFIGURAÇÕES GERAIS")
-    
+
     cabos_por_fase = st.selectbox("Cabos por fase", [1, 2], index=0)
 
 # ===================================================
@@ -669,7 +742,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         if R_rompido_A >= R_rompido_B:
             pior_cenario = "Rompimento no ré"
             F_re_rompido_final = F_re_rompido_A
-            F_vante_rompido_final = F_vante_rompido_A
+            F_vante_rompido_final = F_vante_ROMPIDO_A = F_vante_rompido_A
         else:
             pior_cenario = "Rompimento no vante"
             F_re_rompido_final = F_re_rompido_B
