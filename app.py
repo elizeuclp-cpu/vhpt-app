@@ -342,7 +342,7 @@ with col1:
             "Tipo de estrutura (Opcional)",
             [""] + nomes_estruturas,
             key="tipo_estrutura_opcional",
-            format_func=lambda x: "Selecione uma estrutura liberada" if x == "" else x,
+            format_func=lambda x: "Selecione uma estrutura:" if x == "" else x,
             on_change=aplicar_estrutura_selecionada
         )
 
