@@ -169,7 +169,7 @@ def encontrar_angulo_critico_vento(F_re, F_vante, ang_re, ang_vante, S_arrasto, 
     maior_resultante = 0
     F_cabos = forca_complexa(F_re, ang_re) + forca_complexa(F_vante, ang_vante)
     
-    for ang_vento in range(90, 181, 1):
+    for ang_vento in range(0, 181, 1):
         seno_re = abs(np.sin(np.radians(ang_vento - ang_re)))
         seno_vante = abs(np.sin(np.radians(ang_vento - ang_vante)))
         F_vento_mag = (P_vento/2) * (L_re * seno_re + L_vante * seno_vante) * S_arrasto
