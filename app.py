@@ -329,9 +329,6 @@ if "tipo_estrutura_opcional" not in st.session_state:
     st.session_state["tipo_estrutura_opcional"] = ""
 
 def aplicar_estrutura_selecionada():
-    """
-    Aplica os valores da estrutura selecionada aos campos a) até h)
-    """
     nome = st.session_state.get("tipo_estrutura_opcional", "")
     if not nome:
         return
@@ -373,7 +370,6 @@ with col1:
             on_change=aplicar_estrutura_selecionada
         )
         
-        # Botão de recarregar estrutura (aparece apenas quando há estrutura selecionada)
         if tipo_estrutura_opcional and tipo_estrutura_opcional != "":
             if st.button("🔄 Recarregar Estrutura"):
                 aplicar_estrutura_selecionada()
@@ -694,7 +690,6 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         F_re_vento_cabos = K_circ1 * T_circ1_re_vento + K_circ2 * T_circ2_re_vento + K_pr * T_pr_re_vento
         F_vante_vento_cabos = K_circ1 * T_circ1_vante_vento + K_circ2 * T_circ2_vante_vento + K_pr * T_pr_vante_vento
         
-        # Força de vento no poste (pressão normal)
         F_vento_poste_normal = calcular_forca_vento_poste(tipo_poste, altura_poste, pressao_vento)
         
         ang_vento_critico, _ = encontrar_angulo_critico_vento(
@@ -798,7 +793,6 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         if tem_pr:
             S_arrasto_reduzido += D_pr * K_pr
         
-        # Força de vento no poste (pressão reduzida)
         F_vento_poste_reduzida = calcular_forca_vento_poste(tipo_poste, altura_poste, pressao_vento_reduzida)
         
         ang_vento_rompido_critico, _ = encontrar_angulo_critico_vento(
@@ -823,7 +817,40 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
             theta_rompido += 360
 
         # ===================================================
-        # HIPÓTESE 5: CABO PARA-RAIOS ROMPIDO (NOVO)
+        # CORREÇÃO DUPLO T (DEFINE theta_face AQUI)
+        # ===================================================
+        comerciais = [1500, 2000, 2500, 3000, 4000]
+        
+        if tipo_poste == 'Duplo T':
+            bissetriz = (180 + delta) / 2
+            if locacao in ['L1', 'L3']:
+                theta_face = bissetriz
+            elif locacao in ['L2', 'L4']:
+                theta_face = bissetriz - 90
+            else:
+                theta_face = ang_re if F_re_eds >= F_vante_eds else ang_vante
+            
+            fator_eds = fator_correcao_duplo_t(theta_eds, theta_face)
+            R_eds_corrigido = R_eds / fator_eds
+            
+            fator_min = fator_correcao_duplo_t(theta_min, theta_face)
+            R_min_corrigido = R_min / fator_min
+            
+            fator_vento = fator_correcao_duplo_t(theta_vento, theta_face)
+            R_vento_corrigido = R_vento / fator_vento
+            
+            fator_rompido = fator_correcao_duplo_t(theta_rompido, theta_face)
+            R_rompido_corrigido = R_rompido / fator_rompido
+        else:
+            theta_face = None
+            fator_eds = fator_min = fator_vento = fator_rompido = 1.0
+            R_eds_corrigido = R_eds
+            R_min_corrigido = R_min
+            R_vento_corrigido = R_vento
+            R_rompido_corrigido = R_rompido
+
+        # ===================================================
+        # HIPÓTESE 5: CABO PARA-RAIOS ROMPIDO (DEPOIS do theta_face)
         # ===================================================
         if tem_pr:
             # Peso composto do PR com vento reduzido
@@ -871,7 +898,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
             F_re_rompido_pr_A = (
                 K_circ1 * T_circ1_re_rompido_pr + 
                 K_circ2 * T_circ2_re_rompido_pr + 
-                0  # PR rompido no ré
+                0
             )
             F_vante_rompido_pr_A = (
                 K_circ1 * T_circ1_vante_rompido_pr + 
@@ -888,7 +915,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
             F_vante_rompido_pr_B = (
                 K_circ1 * T_circ1_vante_rompido_pr + 
                 K_circ2 * T_circ2_vante_rompido_pr + 
-                0  # PR rompido no vante
+                0
             )
             
             # Resultantes sem vento
@@ -946,7 +973,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
             if theta_pr_rompido < 0:
                 theta_pr_rompido += 360
             
-            # Correção para Duplo T
+            # Correção para Duplo T (agora theta_face já está definido)
             if tipo_poste == 'Duplo T':
                 fator_pr_rompido = fator_correcao_duplo_t(theta_pr_rompido, theta_face)
                 R_pr_rompido_corrigido = R_pr_rompido / fator_pr_rompido
@@ -955,6 +982,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
                 R_pr_rompido_corrigido = R_pr_rompido
             
             # Fator cagaço
+            fator_cagaco_float = fator_cagaco / 100
             R_pr_rompido_corrigido *= (1 + fator_cagaco_float)
             
             # Conversão kgf → daN (com sobrecarga transitória)
@@ -973,70 +1001,26 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
             pior_cenario_pr = ""
             ang_vento_pr_rompido_critico = 0
 
-        # CORREÇÃO DUPLO T
-        comerciais = [1500, 2000, 2500, 3000, 4000]
-        
-        if tipo_poste == 'Duplo T':
-            bissetriz = (180 + delta) / 2
-            if locacao in ['L1', 'L3']:
-                theta_face = bissetriz
-            elif locacao in ['L2', 'L4']:
-                theta_face = bissetriz - 90
-            else:
-                theta_face = ang_re if F_re_eds >= F_vante_eds else ang_vante
-            
-            fator_eds = fator_correcao_duplo_t(theta_eds, theta_face)
-            R_eds_corrigido = R_eds / fator_eds
-            
-            fator_min = fator_correcao_duplo_t(theta_min, theta_face)
-            R_min_corrigido = R_min / fator_min
-            
-            fator_vento = fator_correcao_duplo_t(theta_vento, theta_face)
-            R_vento_corrigido = R_vento / fator_vento
-            
-            fator_rompido = fator_correcao_duplo_t(theta_rompido, theta_face)
-            R_rompido_corrigido = R_rompido / fator_rompido
-            
-            if tem_pr:
-                fator_pr_rompido = fator_correcao_duplo_t(theta_pr_rompido, theta_face)
-                R_pr_rompido_corrigido = R_pr_rompido / fator_pr_rompido
-        else:
-            theta_face = None
-            fator_eds = fator_min = fator_vento = fator_rompido = fator_pr_rompido = 1.0
-            R_eds_corrigido = R_eds
-            R_min_corrigido = R_min
-            R_vento_corrigido = R_vento
-            R_rompido_corrigido = R_rompido
-            R_pr_rompido_corrigido = R_pr_rompido if tem_pr else 0
-        
-        # FATOR CAGAÇO
+        # FATOR CAGAÇO (já aplicado acima para PR, aplicar para os demais)
         fator_cagaco_float = fator_cagaco / 100
         R_eds_corrigido *= (1 + fator_cagaco_float)
         R_min_corrigido *= (1 + fator_cagaco_float)
         R_vento_corrigido *= (1 + fator_cagaco_float)
         R_rompido_corrigido *= (1 + fator_cagaco_float)
-        if tem_pr:
-            R_pr_rompido_corrigido *= (1 + fator_cagaco_float)
         
         # CONVERSÃO kgf → daN e SOBRECARGA
         R_eds_daN = R_eds_corrigido * KGf_TO_DAN
         R_min_daN = R_min_corrigido * KGf_TO_DAN / (1 + SOBRECARGA_TRANSITORIA)
         R_vento_daN = R_vento_corrigido * KGf_TO_DAN / (1 + SOBRECARGA_TRANSITORIA)
         R_rompido_daN = R_rompido_corrigido * KGf_TO_DAN / (1 + SOBRECARGA_TRANSITORIA)
-        if tem_pr:
-            R_pr_rompido_daN = R_pr_rompido_corrigido * KGf_TO_DAN / (1 + SOBRECARGA_TRANSITORIA)
         
         # POSTE RECOMENDADO
         poste_eds = min([p for p in comerciais if p >= R_eds_daN]) if R_eds_daN <= 4000 else 4000
         poste_min = min([p for p in comerciais if p >= R_min_daN]) if R_min_daN <= 4000 else 4000
         poste_vento = min([p for p in comerciais if p >= R_vento_daN]) if R_vento_daN <= 4000 else 4000
         poste_rompido = min([p for p in comerciais if p >= R_rompido_daN]) if R_rompido_daN <= 4000 else 4000
-        if tem_pr:
-            poste_pr_rompido = min([p for p in comerciais if p >= R_pr_rompido_daN]) if R_pr_rompido_daN <= 4000 else 4000
-        else:
-            poste_pr_rompido = 0
         
-        poste_recomendado = max(poste_eds, poste_min, poste_vento, poste_rompido, poste_pr_rompido)
+        poste_recomendado = max(poste_eds, poste_min, poste_vento, poste_rompido, poste_pr_rompido if tem_pr else 0)
         
         # ===================================================
         # EXIBIR RESULTADOS
@@ -1074,8 +1058,6 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
         R_min_com_seg = R_min_corrigido
         R_vento_com_seg = R_vento_corrigido
         R_rompido_com_seg = R_rompido_corrigido
-        if tem_pr:
-            R_pr_rompido_com_seg = R_pr_rompido_corrigido
         
         dados_tabela = [
             {'Hipótese': 'EDS', 
@@ -1138,7 +1120,7 @@ if st.button("🔍 Calcular Esforço no Poste", type="primary", use_container_wi
                 'Ângulo (°)': f"{theta_pr_rompido:.1f}", 
                 'Fator Corr.': f"{fator_pr_rompido:.3f}",
                 'Fator Seg. (%)': f"{fator_cagaco}",
-                'Resultante c/ Seg (kgf)': f"{R_pr_rompido_com_seg:.1f}",
+                'Resultante c/ Seg (kgf)': f"{R_pr_rompido_corrigido:.1f}",
                 'Fator Sobrecarga': f"{1 + SOBRECARGA_TRANSITORIA:.2f}",
                 'Esforço Final (daN)': f"{R_pr_rompido_daN:.1f}"
             })
